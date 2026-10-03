@@ -1,5 +1,6 @@
 """Calculation tests for Task 2, independent of HTTP and the database. Expected values worked by hand."""
 import math
+from dataclasses import replace
 
 import pytest
 
@@ -90,3 +91,82 @@ def test_round_money_is_half_up_and_never_negative_zero(value, expected):
     result = round_money(value)
     assert result == expected
     assert math.copysign(1, result) == math.copysign(1, expected)
+
+
+@pytest.mark.parametrize(
+    ("price", "cost", "expected_market_value", "expected_change"),
+    [(0.3, 0.2, 0.05, 0.02), (0.2, 0.3, 0.03, -0.02)],
+)
+def test_fractional_positions_round_half_cent_gains_and_losses_correctly(price, cost, expected_market_value, expected_change):
+    position = Position("FRAC", "Fractional position", "Equity", 0.15, cost, price, cost)
+    (value,) = value_holdings([position])
+    # (0.30 - 0.20) * 0.15 = 0.015, which rounds half-up to 0.02.
+    assert round_money(value.market_value) == expected_market_value
+    assert round_money(value.unrealized_gain_loss) == expected_change
+    assert round_money(value.day_change_amount) == expected_change
+    assert value.weight_percent == 1
+
+
+def test_zero_price_with_positive_quantity_has_zero_weight_and_full_loss():
+    position = Position("WORTHLESS", "Worthless security", "Equity", 2, 4, 0, 10)
+    (value,) = value_holdings([position])
+    assert value.market_value == 0
+    assert value.weight_percent == 0
+    assert value.unrealized_gain_loss == -8
+    assert value.day_change_amount == -20
+    assert value.day_change_percent == -1
+
+
+def test_unchanged_price_and_cost_have_neutral_changes():
+    (value,) = value_holdings([Position("FLAT", "Flat security", "Cash", 3.5, 1, 1, 1)])
+    assert value.market_value == 3.5
+    assert value.unrealized_gain_loss == 0
+    assert value.day_change_amount == 0
+    assert value.day_change_percent == 0
+
+
+def test_zero_price_and_zero_previous_close_remain_undefined():
+    assert day_change_percent(0, 0) is None
+
+
+def test_tiny_position_is_retained_even_when_display_weight_rounds_to_zero():
+    tiny = Position("TINY", "Tiny security", "Equity", 0.001, 0.01, 0.01, 0.01)
+    large = Position("LARGE", "Large security", "Equity", 1, 100, 100, 100)
+    values = by_ticker(value_holdings([tiny, large]))
+    assert len(values) == 2
+    assert values["TINY"].market_value == pytest.approx(0.00001)
+    assert values["TINY"].weight_percent > 0
+    assert round_ratio(values["TINY"].weight_percent) == 0
+
+
+def test_valuation_does_not_reorder_or_mutate_input_positions():
+    positions = [ZERO, BND, AAPL]
+    original = list(positions)
+    value_holdings(positions)
+    assert positions == original
+
+
+def test_scaling_quotes_preserves_weights_and_price_change_percentages():
+    original = value_holdings([AAPL, BND])
+    scaled = value_holdings([
+        replace(p, price=p.price * 10, cost_basis_per_share=p.cost_basis_per_share * 10,
+                previous_close_price=p.previous_close_price * 10)
+        for p in [AAPL, BND]
+    ])
+    for before, after in zip(original, scaled, strict=True):
+        assert after.weight_percent == pytest.approx(before.weight_percent)
+        assert after.day_change_percent == pytest.approx(before.day_change_percent)
+        assert after.market_value == pytest.approx(before.market_value * 10)
+        assert after.unrealized_gain_loss == pytest.approx(before.unrealized_gain_loss * 10)
+        assert after.day_change_amount == pytest.approx(before.day_change_amount * 10)
+
+
+@pytest.mark.parametrize(
+    ("ratio", "expected"),
+    [(None, None), (0, 0), (0.0000005, 0.000001), (-0.0000005, -0.000001), (-0.0000001, 0)],
+)
+def test_ratio_rounding_preserves_null_half_up_and_neutral_zero(ratio, expected):
+    result = round_ratio(ratio)
+    assert result == expected
+    if result == 0:
+        assert math.copysign(1, result) == 1

@@ -1,5 +1,6 @@
 """Holding valuation (Task 2): pure calculations, no I/O. Values are unrounded; see rounding.py."""
 from dataclasses import dataclass
+from decimal import Decimal
 
 
 @dataclass(frozen=True)
@@ -32,16 +33,22 @@ def value_holdings(positions: list[Position]) -> list[HoldingValuation]:
       Weights are not adjusted to sum to exactly 1.
     - day_change_percent is per share (a price move), so a zero-quantity holding still reports it.
     """
-    market_values = [p.quantity * p.price for p in positions]
-    total = sum(market_values)
+    # Convert stored inputs before arithmetic. Converting an already-computed float
+    # at rounding time cannot recover an exact half-cent lost during subtraction.
+    market_values = [Decimal(str(p.quantity)) * Decimal(str(p.price)) for p in positions]
+    total = sum(market_values, Decimal(0))
 
     valuations = [
         HoldingValuation(
             position=p,
             market_value=_clean(market_value),
             weight_percent=_clean(market_value / total) if total else 0.0,
-            unrealized_gain_loss=_clean((p.price - p.cost_basis_per_share) * p.quantity),
-            day_change_amount=_clean((p.price - p.previous_close_price) * p.quantity),
+            unrealized_gain_loss=_clean(
+                (Decimal(str(p.price)) - Decimal(str(p.cost_basis_per_share))) * Decimal(str(p.quantity))
+            ),
+            day_change_amount=_clean(
+                (Decimal(str(p.price)) - Decimal(str(p.previous_close_price))) * Decimal(str(p.quantity))
+            ),
             day_change_percent=day_change_percent(p.price, p.previous_close_price),
         )
         for p, market_value in zip(positions, market_values, strict=True)
@@ -53,9 +60,10 @@ def day_change_percent(price: float, previous_close: float) -> float | None:
     """(price - previous close) / previous close, or None when previous close is 0."""
     if previous_close == 0:
         return None
-    return _clean((price - previous_close) / previous_close)
+    current, previous = Decimal(str(price)), Decimal(str(previous_close))
+    return _clean((current - previous) / previous)
 
 
-def _clean(value: float) -> float:
-    """Turn -0.0 (e.g. a negative difference x 0 shares) into 0.0 so clients never see "-0"."""
-    return value + 0.0
+def _clean(value: Decimal) -> float:
+    """Return an unrounded numeric result with neutral zero for existing consumers."""
+    return float(value) + 0.0

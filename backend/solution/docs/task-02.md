@@ -22,6 +22,8 @@ Every calculated field is computed per request from stored inputs (quantity, cos
 - **Zero quantity:** `marketValue`, `weightPercent`, `unrealizedGainLoss` and `dayChangeAmount` are all `0`, never `-0`.
   - `dayChangePercent` is a per-share price move, so ZERO still reports `0.2`. It's information about the security, not the position.
 - **Rounding happens only at output.** Calculations use unrounded values, which keeps totals and weights consistent.
+  - Valuation arithmetic uses `Decimal` constructed from the stored inputs' decimal strings. This prevents fractional-share half-cent changes from being rounded incorrectly after binary float subtraction.
+  - Unrounded valuation results are returned as floats for existing consumers; responses remain JSON numbers. SQLite inputs still use `REAL`, so this is not an end-to-end exact-decimal storage model.
   - Money: 2 decimal places, rounded half-up.
   - Ratios (`weightPercent`, `dayChangePercent`): 6 decimal places.
   - Stored inputs (`quantity`, prices, cost basis) are returned as stored.
@@ -51,3 +53,22 @@ Every calculated field is computed per request from stored inputs (quantity, cos
   - Every route that touches it is `async`, so access stays on the event-loop thread and is never concurrent.
   - The queries are small local reads, so blocking the loop briefly is acceptable here.
   - A larger service would use a connection per request or a pool.
+
+## Task 2 review coverage
+
+The tests cover every required calculation and the empty, zero-quantity,
+zero-previous-close, unknown-portfolio, and rounded-weight cases. The review adds:
+
+| Case | Why it matters |
+|---|---|
+| Fractional-share half-cent gains and losses, in calculation and HTTP tests | Reproduces the rounding bug and prevents it returning. |
+| Changed prices, previous close, quantity, and cost between requests | Proves all calculated fields and the weight denominator are recomputed from current stored inputs. |
+| Same ticker in different portfolios with different quantity and cost | Ensures shared security quotes do not mix account-specific positions. |
+| All quantities zero, and positive quantities with all prices zero | Exercises zero-total weights and finite JSON values without dropping positions. |
+| Unchanged prices and cost; zero price and zero previous close | Verifies neutral changes, full losses, and undefined percentage handling. |
+| Tiny fractional positions | Keeps positions present even if their display weight rounds to zero. |
+| Unmodified input order and proportional quote changes | Checks pure calculations and consistent ratios without mutation. |
+| Ratio rounding, including null, negative half ties, and negative zero | Preserves the documented six-place half-up policy. |
+| Three equal holdings through the endpoint | Confirms rounded weights remain 0.333333 each, without forcing a total of one. |
+| Sixty holdings | Checks complete, uniquely identified, consistently ordered responses. |
+| Unsupported HTTP method | Checks the structured 405 response for this endpoint. |

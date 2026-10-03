@@ -2,12 +2,12 @@
 -- Foreign keys are enabled per connection in database.py (PRAGMA foreign_keys = ON).
 
 CREATE TABLE clients (
-    client_id TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL PRIMARY KEY,
     name      TEXT NOT NULL
 );
 
 CREATE TABLE portfolios (
-    portfolio_id TEXT PRIMARY KEY,
+    portfolio_id TEXT NOT NULL PRIMARY KEY,
     client_id    TEXT NOT NULL REFERENCES clients (client_id),
     label        TEXT NOT NULL,
     currency     TEXT NOT NULL CHECK (length(currency) = 3)
@@ -16,7 +16,7 @@ CREATE INDEX idx_portfolios_client ON portfolios (client_id);
 
 -- Security master: one row per ticker, shared by every portfolio that holds it (e.g. AAPL).
 CREATE TABLE securities (
-    ticker               TEXT PRIMARY KEY,
+    ticker               TEXT NOT NULL PRIMARY KEY,
     name                 TEXT NOT NULL,
     asset_class          TEXT NOT NULL,
     sector               TEXT,
@@ -38,7 +38,7 @@ CREATE TABLE security_price_history (
 -- quantity / cost_basis_per_share are seed snapshots used by Tasks 2-9 (allowed by START-HERE.md);
 -- Task 10 derives them from `transactions` via ledger replay instead.
 CREATE TABLE holdings (
-    holding_id           TEXT PRIMARY KEY,
+    holding_id           TEXT NOT NULL PRIMARY KEY,
     portfolio_id         TEXT NOT NULL REFERENCES portfolios (portfolio_id),
     ticker               TEXT NOT NULL REFERENCES securities (ticker),
     quantity             REAL NOT NULL CHECK (quantity >= 0),
@@ -47,7 +47,7 @@ CREATE TABLE holdings (
 );
 
 CREATE TABLE transactions (
-    transaction_id TEXT PRIMARY KEY,
+    transaction_id TEXT NOT NULL PRIMARY KEY,
     holding_id     TEXT NOT NULL REFERENCES holdings (holding_id),
     type           TEXT NOT NULL CHECK (type IN ('BUY', 'SELL')),
     quantity       REAL NOT NULL CHECK (quantity > 0),

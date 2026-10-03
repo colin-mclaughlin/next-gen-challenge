@@ -1,0 +1,5 @@
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+# Starlette 1.x prefers `httpx2` for its TestClient; plain httpx still works. Revisit when upgrading.
+filterwarnings = ["ignore:Using `httpx` with `starlette.testclient` is deprecated"]

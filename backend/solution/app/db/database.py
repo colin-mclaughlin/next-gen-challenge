@@ -3,9 +3,7 @@
 The database is a disposable copy of the fixtures: `build_database` deletes and rebuilds it on
 every start, so every run (and every test) begins from the same known state.
 """
-import sqlite3
 from pathlib import Path
-from typing import Any
 
 from sqlalchemy import Engine
 from sqlalchemy.dialects import sqlite
@@ -16,7 +14,7 @@ from app.db.seed import SeedError, load_history, seed_database
 from app.db.session import make_session_factory
 from app.models import Base
 
-__all__ = ["MEMORY", "SCHEMA_PATH", "SeedError", "build_database", "legacy_connection", "render_schema_sql"]
+__all__ = ["MEMORY", "SCHEMA_PATH", "SeedError", "build_database", "render_schema_sql"]
 
 # Generated reference copy of the schema (see render_schema_sql); the models are the source of truth.
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
@@ -40,17 +38,6 @@ def build_database(path: str, seed_path: str, history_path: str | None = None) -
         if history_path is not None and Path(history_path).exists():
             load_history(session, history_path)
     return engine
-
-
-def legacy_connection(engine: Engine) -> tuple[sqlite3.Connection, Any]:
-    """TEMPORARY bridge (removed in refactor step 3): a raw sqlite3 connection for the old
-    SQL-string repositories. Returns (connection, pool handle); close the handle when done."""
-    handle = engine.raw_connection()
-    conn = handle.driver_connection
-    if not isinstance(conn, sqlite3.Connection):
-        raise RuntimeError("Expected a sqlite3 connection from the SQLite engine.")
-    conn.row_factory = sqlite3.Row
-    return conn, handle
 
 
 def render_schema_sql() -> str:

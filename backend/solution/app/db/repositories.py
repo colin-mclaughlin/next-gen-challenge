@@ -1,53 +1,53 @@
-"""SQL access only: queries that return plain domain objects. No calculations here."""
-import sqlite3
-from datetime import date
+"""Repositories: the only code that queries the database.
+
+Each function takes a Session (one unit of work) and returns plain domain objects, so services
+and calculations never see SQL or ORM details. Queries are built with SQLAlchemy (always
+parameterised) against the models in app/models.
+"""
+import datetime
+
+from sqlalchemy import exists, select
+from sqlalchemy.orm import Session
 
 from app.domain.history import Snapshot
 from app.domain.holdings import Position
+from app.models import Holding, PerformanceSnapshot, Portfolio, Security
 
 
-def portfolio_exists(conn: sqlite3.Connection, portfolio_id: str) -> bool:
-    row = conn.execute("SELECT 1 FROM portfolios WHERE portfolio_id = ?", (portfolio_id,)).fetchone()
-    return row is not None
+def portfolio_exists(session: Session, portfolio_id: str) -> bool:
+    return bool(session.scalar(select(exists().where(Portfolio.portfolio_id == portfolio_id))))
 
 
-def list_positions(conn: sqlite3.Connection, portfolio_id: str) -> list[Position]:
-    rows = conn.execute(
-        """
-        SELECT h.ticker, s.name, s.asset_class, h.quantity, h.cost_basis_per_share,
-               s.price, s.previous_close_price
-        FROM holdings h
-        JOIN securities s ON s.ticker = h.ticker
-        WHERE h.portfolio_id = ?
-        ORDER BY h.holding_id
-        """,
-        (portfolio_id,),
-    ).fetchall()
+def list_positions(session: Session, portfolio_id: str) -> list[Position]:
+    """A portfolio's holdings joined to their security (name, asset class, prices)."""
+    rows = session.execute(
+        select(Holding, Security)
+        .join(Holding.security)
+        .where(Holding.portfolio_id == portfolio_id)
+        .order_by(Holding.holding_id)
+    )
     return [
         Position(
-            ticker=row["ticker"],
-            name=row["name"],
-            asset_class=row["asset_class"],
-            quantity=row["quantity"],
-            cost_basis_per_share=row["cost_basis_per_share"],
-            price=row["price"],
-            previous_close_price=row["previous_close_price"],
+            ticker=holding.ticker,
+            name=security.name,
+            asset_class=security.asset_class,
+            quantity=holding.quantity,
+            cost_basis_per_share=holding.cost_basis_per_share,
+            price=security.price,
+            previous_close_price=security.previous_close_price,
         )
-        for row in rows
+        for holding, security in rows
     ]
 
 
-def list_snapshots(conn: sqlite3.Connection, portfolio_id: str, start: date | None, end: date) -> list[Snapshot]:
+def list_snapshots(
+    session: Session, portfolio_id: str, start: datetime.date | None, end: datetime.date
+) -> list[Snapshot]:
     """Snapshots with start <= date <= end (no lower bound when start is None), oldest first."""
-    start_iso = start.isoformat() if start else None
-    rows = conn.execute(
-        """
-        SELECT date, market_value FROM performance_snapshots
-        WHERE portfolio_id = :portfolio_id
-          AND (:start IS NULL OR date >= :start)
-          AND date <= :end
-        ORDER BY date
-        """,
-        {"portfolio_id": portfolio_id, "start": start_iso, "end": end.isoformat()},
-    ).fetchall()
-    return [Snapshot(date=row["date"], market_value=row["market_value"]) for row in rows]
+    query = select(PerformanceSnapshot).where(
+        PerformanceSnapshot.portfolio_id == portfolio_id, PerformanceSnapshot.date <= end
+    )
+    if start is not None:
+        query = query.where(PerformanceSnapshot.date >= start)
+    snapshots = session.scalars(query.order_by(PerformanceSnapshot.date))
+    return [Snapshot(date=s.date.isoformat(), market_value=s.market_value) for s in snapshots]

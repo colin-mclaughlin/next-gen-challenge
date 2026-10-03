@@ -33,7 +33,7 @@ Every calculated field is computed per request from stored inputs (quantity, cos
 - **Numbers in JSON** are floats (`120.0`), which is the same value as `120` to any JSON client.
 
 ## Database (`app/db/`)
-- **Schema:** `schema.sql`, normalized, with foreign keys enforced (`PRAGMA foreign_keys = ON`) and CHECK constraints.
+- **Schema:** defined by the SQLAlchemy models in `app/models/` (generated copy: `app/db/schema.sql`), normalized, with foreign keys enforced (`PRAGMA foreign_keys = ON` on every connection) and CHECK constraints.
 
   | Table | Holds |
   |---|---|
@@ -49,10 +49,7 @@ Every calculated field is computed per request from stored inputs (quantity, cos
   - If two seed holdings of the same ticker disagree on price, seeding fails loudly.
 - **Snapshot columns:** `holdings.quantity` and `holdings.cost_basis_per_share` come from the seed, as START-HERE allows for Tasks 2–9. Task 10 replaces them with values replayed from `transactions`.
 - **Lifecycle:** `data/app.db` (gitignored) is a disposable copy of `backend/fixtures/seed.json`. It's **deleted and rebuilt on every startup**, so every run starts from the same known state. Tests use `:memory:`. Override with `DATABASE_PATH` and `SEED_PATH`.
-- **Threading:** one shared connection (`check_same_thread=False`).
-  - Every route that touches it is `async`, so access stays on the event-loop thread and is never concurrent.
-  - The queries are small local reads, so blocking the loop briefly is acceptable here.
-  - A larger service would use a connection per request or a pool.
+- **Sessions:** each service call opens its own short-lived SQLAlchemy session and closes it when done. Connections come from the engine's pool; an in-memory test database shares one connection so every session sees the same data.
 
 ## Task 2 review coverage
 

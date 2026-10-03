@@ -12,7 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import DEFAULT_SEED_PATH, Settings
-from app.db.database import MEMORY, build_database, legacy_connection
+from app.db.database import MEMORY, build_database
 from app.main import create_app
 
 MOCK_CRM = Path(__file__).resolve().parents[2] / "mock-crm.mjs"
@@ -55,9 +55,12 @@ def engine():
 
 @pytest.fixture
 def db(engine):
-    """Raw sqlite3 connection to the same in-memory database, for tests that set up data with SQL."""
-    conn, handle = legacy_connection(engine)
-    yield conn
+    """Raw sqlite3 connection to the same in-memory database, for tests that set up scenarios with SQL.
+
+    Test-only: the app itself reaches the database exclusively through SQLAlchemy sessions.
+    """
+    handle = engine.raw_connection()
+    yield handle.driver_connection
     handle.close()
 
 

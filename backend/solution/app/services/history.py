@@ -1,5 +1,5 @@
 """Task 3: performance history filtered to a date range ending today."""
-import sqlite3
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.clock import Clock, utc_today
 from app.db import repositories
@@ -10,8 +10,8 @@ from app.schemas import PerformancePoint
 
 
 class HistoryService:
-    def __init__(self, conn: sqlite3.Connection, clock: Clock = utc_today):
-        self.conn = conn
+    def __init__(self, sessions: sessionmaker[Session], clock: Clock = utc_today):
+        self.sessions = sessions
         self.clock = clock
 
     def get(self, portfolio_id: str, raw_range: str | None) -> list[PerformancePoint]:
@@ -20,9 +20,10 @@ class HistoryService:
             range_ = parse_range(raw_range)
         except InvalidRange as exc:
             raise ApiError(400, "invalid_range", str(exc)) from exc
-        if not repositories.portfolio_exists(self.conn, portfolio_id):
-            raise ApiError(404, "portfolio_not_found", f"Portfolio {portfolio_id} was not found.")
 
         today = self.clock()
-        snapshots = repositories.list_snapshots(self.conn, portfolio_id, range_start(range_, today), today)
+        with self.sessions() as session:  # one short-lived session per call
+            if not repositories.portfolio_exists(session, portfolio_id):
+                raise ApiError(404, "portfolio_not_found", f"Portfolio {portfolio_id} was not found.")
+            snapshots = repositories.list_snapshots(session, portfolio_id, range_start(range_, today), today)
         return [PerformancePoint(date=s.date, market_value=round_money(s.market_value)) for s in snapshots]

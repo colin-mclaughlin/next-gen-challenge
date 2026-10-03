@@ -1,5 +1,5 @@
 """Task 2: load a portfolio's positions, value them, and shape the API response."""
-import sqlite3
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.db import repositories
 from app.domain.holdings import HoldingValuation, value_holdings
@@ -9,14 +9,17 @@ from app.schemas import Holding
 
 
 class HoldingsService:
-    def __init__(self, conn: sqlite3.Connection):
-        self.conn = conn
+    def __init__(self, sessions: sessionmaker[Session]):
+        self.sessions = sessions
 
     def valuations(self, portfolio_id: str) -> list[HoldingValuation]:
         """Unrounded valuations, for reuse by aggregate views (allocation, household)."""
-        if not repositories.portfolio_exists(self.conn, portfolio_id):
-            raise ApiError(404, "portfolio_not_found", f"Portfolio {portfolio_id} was not found.")
-        return value_holdings(repositories.list_positions(self.conn, portfolio_id))
+        # One short-lived session per call: opened here, closed automatically at the end.
+        with self.sessions() as session:
+            if not repositories.portfolio_exists(session, portfolio_id):
+                raise ApiError(404, "portfolio_not_found", f"Portfolio {portfolio_id} was not found.")
+            positions = repositories.list_positions(session, portfolio_id)
+        return value_holdings(positions)
 
     def list_holdings(self, portfolio_id: str) -> list[Holding]:
         return [_to_response(v) for v in self.valuations(portfolio_id)]

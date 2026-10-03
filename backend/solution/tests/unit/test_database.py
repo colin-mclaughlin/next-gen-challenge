@@ -1,7 +1,9 @@
+import datetime
 import json
 import sqlite3
 
 import pytest
+from sqlalchemy.orm import Session
 
 from app.config import DEFAULT_SEED_PATH
 from app.db import repositories
@@ -23,8 +25,10 @@ def test_seed_loads_every_fixture_table(db):
 
 
 def test_security_details_are_merged_with_prices(db):
-    row = db.execute("SELECT * FROM securities WHERE ticker = 'AAPL'").fetchone()
-    assert (row["sector"], row["dividend_yield"], row["price"], row["previous_close_price"]) == ("Technology", 0.005, 227.5, 225)
+    row = db.execute(
+        "SELECT sector, dividend_yield, price, previous_close_price FROM securities WHERE ticker = 'AAPL'"
+    ).fetchone()
+    assert tuple(row) == ("Technology", 0.005, 227.5, 225)
     assert db.execute("SELECT dividend_yield FROM securities WHERE ticker = 'ZERO'").fetchone()[0] is None
 
 
@@ -61,8 +65,12 @@ def test_file_database_is_rebuilt_from_scratch(tmp_path):
     second.dispose()
 
 
-def test_repositories(db):
-    assert repositories.portfolio_exists(db, "P-9001")
-    assert not repositories.portfolio_exists(db, "UNKNOWN")
-    assert [p.ticker for p in repositories.list_positions(db, "P-9001")] == ["AAPL", "BND", "ZERO"]
-    assert repositories.list_positions(db, "P-EMPTY") == []
+def test_repositories(engine):
+    with Session(engine) as session:
+        assert repositories.portfolio_exists(session, "P-9001")
+        assert not repositories.portfolio_exists(session, "UNKNOWN")
+        positions = repositories.list_positions(session, "P-9001")
+        assert [p.ticker for p in positions] == ["AAPL", "BND", "ZERO"]
+        assert (positions[0].name, positions[0].price, positions[0].quantity) == ("Apple Inc.", 227.5, 120)
+        assert repositories.list_positions(session, "P-EMPTY") == []
+        assert repositories.list_snapshots(session, "P-9001", None, datetime.date(2026, 10, 3)) == []  # no history file

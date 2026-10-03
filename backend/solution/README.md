@@ -1,6 +1,6 @@
 # Portfolio Dashboard Backend
 
-Python 3.12 with **FastAPI**. Persistence uses SQLite through Python's built-in `sqlite3` module.
+Python 3.12 with **FastAPI**. Persistence is SQLite through **SQLAlchemy 2.0**: models in `app/models/`, queries in `app/db/repositories.py`.
 
 ## Requirements
 - Python **3.11+** (developed on 3.12)
@@ -58,7 +58,8 @@ app/schemas.py        Pydantic response models (snake_case in Python, camelCase 
 app/routers/          thin route definitions, one file per feature
 app/services/         orchestration: CRM client and mapper, portfolio metadata, holdings, history
 app/domain/           pure calculations (no I/O): holdings valuation, history ranges, rounding
-app/db/               schema.sql, database build/seed, history fixture refresh, SQL queries (repositories)
+app/models/           SQLAlchemy models: one class per table, with relationships and constraints
+app/db/               engine + sessions, database build/seed, repositories (all queries), generated schema.sql
 tests/unit, tests/http
 docs/task-NN.md       per-task decisions and notes
 ```

@@ -1,8 +1,10 @@
 """Shared fixtures. HTTP tests run against the real mock CRM (node backend/mock-crm.mjs) on a random port."""
+import json
 import shutil
 import socket
 import subprocess
 import time
+from datetime import date, timedelta
 from pathlib import Path
 
 import httpx
@@ -15,6 +17,32 @@ from app.main import create_app
 
 MOCK_CRM = Path(__file__).resolve().parents[2] / "mock-crm.mjs"
 UNREACHABLE_CRM = "http://127.0.0.1:9"  # for apps whose tests never call the CRM
+FIXED_TODAY = date(2026, 10, 3)  # history tests use a fixed "today" so they never depend on the real date
+
+
+def write_history(path: Path, today: date = FIXED_TODAY) -> Path:
+    """Same shape and formula as backend/fixtures/generate-history.mjs, ending on `today`."""
+    fixtures = {}
+    for portfolio_id, count, value in [("P-9001", 401, 48930), ("P-9002", 60, 500), ("P-EMPTY", 0, 0), ("P-SINGLE", 60, 2275)]:
+        fixtures[portfolio_id] = [
+            {
+                "date": (today - timedelta(days=count - 1 - i)).isoformat(),
+                "marketValue": round(value * (0.9 + 0.1 * (i + 1) / count), 2),
+            }
+            for i in range(count)
+        ]
+    path.write_text(json.dumps(fixtures), encoding="utf-8")
+    return path
+
+
+@pytest.fixture
+def history_client(tmp_path):
+    """App with seeded db + generated history ending FIXED_TODAY, and a clock pinned to that day."""
+    conn = build_database(MEMORY, str(DEFAULT_SEED_PATH), str(write_history(tmp_path / "history.json")))
+    app = create_app(Settings(crm_base_url=UNREACHABLE_CRM), db=conn, clock=lambda: FIXED_TODAY)
+    with TestClient(app) as client:
+        yield client
+    conn.close()
 
 
 @pytest.fixture

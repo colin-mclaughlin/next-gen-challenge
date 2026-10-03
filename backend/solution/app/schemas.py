@@ -36,3 +36,10 @@ class Holding(ApiModel):
     unrealized_gain_loss: float
     day_change_amount: float
     day_change_percent: float | None  # null when previous close is 0
+
+
+class PerformancePoint(ApiModel):
+    """Task 3 output item."""
+
+    date: str  # ISO 8601 YYYY-MM-DD
+    market_value: float

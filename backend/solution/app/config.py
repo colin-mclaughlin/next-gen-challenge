@@ -6,7 +6,10 @@ from pathlib import Path
 
 SOLUTION_DIR = Path(__file__).resolve().parents[1]  # backend/solution
 DEFAULT_DATABASE_PATH = SOLUTION_DIR / "data" / "app.db"
-DEFAULT_SEED_PATH = SOLUTION_DIR.parent / "fixtures" / "seed.json"  # backend/fixtures/seed.json
+FIXTURES_DIR = SOLUTION_DIR.parent / "fixtures"  # backend/fixtures
+DEFAULT_SEED_PATH = FIXTURES_DIR / "seed.json"
+DEFAULT_HISTORY_PATH = FIXTURES_DIR / "performance-history.json"  # generated, gitignored
+HISTORY_GENERATOR = FIXTURES_DIR / "generate-history.mjs"
 
 
 @dataclass(frozen=True)
@@ -17,6 +20,7 @@ class Settings:
     crm_timeout_seconds: float = 2.0
     database_path: str = str(DEFAULT_DATABASE_PATH)  # ":memory:" for tests
     seed_path: str = str(DEFAULT_SEED_PATH)
+    history_path: str = str(DEFAULT_HISTORY_PATH)
 
 
 def load_settings(env: Mapping[str, str] | None = None) -> Settings:
@@ -28,6 +32,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         crm_timeout_seconds=_int_in_range("CRM_TIMEOUT_MS", source.get("CRM_TIMEOUT_MS", "2000"), 1, 600_000) / 1000,
         database_path=source.get("DATABASE_PATH", str(DEFAULT_DATABASE_PATH)),
         seed_path=source.get("SEED_PATH", str(DEFAULT_SEED_PATH)),
+        history_path=source.get("HISTORY_PATH", str(DEFAULT_HISTORY_PATH)),
     )
 
 

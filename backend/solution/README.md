@@ -24,7 +24,7 @@ node backend/mock-crm.mjs                # mock CRM on :4002
 cd backend/solution && python -m app     # this backend on :3000 (venv active)
 ```
 
-Interactive API docs are at <http://localhost:3000/docs>. The SQLite database (`data/app.db`) is rebuilt from `backend/fixtures/seed.json` on every start.
+Interactive API docs are at <http://localhost:3000/docs>. The SQLite database (`data/app.db`) is rebuilt from the fixtures on every start. If the performance history sample is missing or out of date, it's regenerated first (needs Node).
 
 | Env var | Default | Purpose |
 |---|---|---|
@@ -34,6 +34,7 @@ Interactive API docs are at <http://localhost:3000/docs>. The SQLite database (`
 | `CRM_TIMEOUT_MS` | `2000` | Total time limit for a CRM call (the mock's timeout mode hangs for 10s) |
 | `DATABASE_PATH` | `data/app.db` | SQLite file, rebuilt on start (`:memory:` also works) |
 | `SEED_PATH` | `backend/fixtures/seed.json` | Fixture data loaded into the database |
+| `HISTORY_PATH` | `backend/fixtures/performance-history.json` | Daily history. The default file is regenerated at startup if it's missing or stale. |
 
 ## Test and type-check
 ```sh
@@ -51,12 +52,13 @@ cd backend/solution && python -m pytest && python -m mypy
 app/main.py           create_app(): wires settings, CRM client, database, services, routers, error handlers
 app/__main__.py       `python -m app` runs uvicorn
 app/config.py         Settings loaded from env vars
+app/clock.py          injectable "today" (UTC) for date-relative logic
 app/errors.py         ApiError + handlers that produce the { error, message } envelope
 app/schemas.py        Pydantic response models (snake_case in Python, camelCase in JSON)
 app/routers/          thin route definitions, one file per feature
-app/services/         orchestration: CRM client and mapper, portfolio metadata, holdings
-app/domain/           pure calculations (no I/O): holdings valuation, rounding
-app/db/               schema.sql, database build/seed, SQL queries (repositories)
+app/services/         orchestration: CRM client and mapper, portfolio metadata, holdings, history
+app/domain/           pure calculations (no I/O): holdings valuation, history ranges, rounding
+app/db/               schema.sql, database build/seed, history fixture refresh, SQL queries (repositories)
 tests/unit, tests/http
 docs/task-NN.md       per-task decisions and notes
 ```
@@ -75,6 +77,7 @@ docs/task-NN.md       per-task decisions and notes
 |---|---|---|
 | 1 | `GET /portfolios/{id}` | [docs/task-01.md](docs/task-01.md) |
 | 2 | `GET /portfolios/{id}/holdings` | [docs/task-02.md](docs/task-02.md) |
+| 3 | `GET /portfolios/{id}/performance-history?range=` | [docs/task-03.md](docs/task-03.md) |
 
 ## Working on this repo
 - **One branch and one PR per task** (`task-NN-name`). Collaborator follow-ups go in their own small branches (`collab/...`).

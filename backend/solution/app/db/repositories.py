@@ -1,6 +1,8 @@
 """SQL access only: queries that return plain domain objects. No calculations here."""
 import sqlite3
+from datetime import date
 
+from app.domain.history import Snapshot
 from app.domain.holdings import Position
 
 
@@ -33,3 +35,19 @@ def list_positions(conn: sqlite3.Connection, portfolio_id: str) -> list[Position
         )
         for row in rows
     ]
+
+
+def list_snapshots(conn: sqlite3.Connection, portfolio_id: str, start: date | None, end: date) -> list[Snapshot]:
+    """Snapshots with start <= date <= end (no lower bound when start is None), oldest first."""
+    start_iso = start.isoformat() if start else None
+    rows = conn.execute(
+        """
+        SELECT date, market_value FROM performance_snapshots
+        WHERE portfolio_id = :portfolio_id
+          AND (:start IS NULL OR date >= :start)
+          AND date <= :end
+        ORDER BY date
+        """,
+        {"portfolio_id": portfolio_id, "start": start_iso, "end": end.isoformat()},
+    ).fetchall()
+    return [Snapshot(date=row["date"], market_value=row["market_value"]) for row in rows]

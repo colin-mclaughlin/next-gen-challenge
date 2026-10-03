@@ -56,6 +56,14 @@ CREATE TABLE transactions (
 );
 CREATE INDEX idx_transactions_holding ON transactions (holding_id, date);
 
+-- Daily total market value per portfolio (Task 3), loaded from backend/fixtures/performance-history.json.
+CREATE TABLE performance_snapshots (
+    portfolio_id TEXT NOT NULL REFERENCES portfolios (portfolio_id),
+    date         TEXT NOT NULL,  -- ISO 8601 YYYY-MM-DD
+    market_value REAL NOT NULL CHECK (market_value >= 0),
+    PRIMARY KEY (portfolio_id, date)
+);
+
 CREATE TABLE exchange_rates (
     base_currency  TEXT NOT NULL,
     quote_currency TEXT NOT NULL,

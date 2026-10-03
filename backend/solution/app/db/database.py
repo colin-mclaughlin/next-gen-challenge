@@ -31,15 +31,35 @@ def init_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
 
 
-def build_database(path: str, seed_path: str) -> sqlite3.Connection:
-    """Delete any existing database file, then create the schema and load the seed fixtures."""
+def build_database(path: str, seed_path: str, history_path: str | None = None) -> sqlite3.Connection:
+    """Delete any existing database file, then create the schema and load the fixtures.
+
+    `history_path` is optional: when it is None or the file doesn't exist, no performance
+    history is loaded (history endpoints return []).
+    """
     if path != MEMORY:
         for suffix in ("", "-journal", "-wal", "-shm"):
             Path(path + suffix).unlink(missing_ok=True)
     conn = open_database(path)
     init_schema(conn)
     seed_from_fixtures(conn, seed_path)
+    if history_path is not None and Path(history_path).exists():
+        load_history(conn, history_path)
     return conn
+
+
+def load_history(conn: sqlite3.Connection, history_path: str) -> None:
+    """Load `{ portfolioId: [{ date, marketValue }, ...] }` into performance_snapshots."""
+    data = json.loads(Path(history_path).read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise SeedError(f"{history_path} must be an object keyed by portfolio id.")
+    known = {row[0] for row in conn.execute("SELECT portfolio_id FROM portfolios")}
+    unknown = sorted(set(data) - known)
+    if unknown:
+        raise SeedError(f"{history_path} has history for unknown portfolios: {', '.join(unknown)}.")
+    rows = [(portfolio_id, point["date"], point["marketValue"]) for portfolio_id, points in data.items() for point in points]
+    with conn:
+        conn.executemany("INSERT INTO performance_snapshots (portfolio_id, date, market_value) VALUES (?, ?, ?)", rows)
 
 
 def seed_from_fixtures(conn: sqlite3.Connection, seed_path: str) -> None:

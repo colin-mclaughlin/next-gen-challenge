@@ -1,7 +1,7 @@
 """HTTP client for the legacy CRM.
 
 Returns the raw CRM payload or raises CrmError, whose `kind` tells callers how the call failed
-(used for HTTP error mapping now, and for the cache's stale fallback in Task 9).
+(used for HTTP error mapping, and by any future cache to decide when to serve a stale fallback).
 """
 import asyncio
 from typing import Any, Literal

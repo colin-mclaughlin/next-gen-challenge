@@ -1,6 +1,6 @@
 # Task 2: `GET /portfolios/{id}/holdings` (holdings, valuation, gain/loss)
 
-Code: `app/domain/holdings.py` (pure calculations), `app/domain/rounding.py`, `app/services/holdings.py`, `app/routers/holdings.py`, `app/db/` (schema, seeding, queries).
+Code: `app/domain/holdings.py` (pure calculations), `app/domain/rounding.py`, `app/services/holdings.py`, `app/routers/holdings.py`, `app/db/repositories.py` (`list_positions`), `app/models/holding.py` and `security.py`. See [architecture.md](architecture.md) for how the layers connect.
 Tests: `tests/unit/test_holdings_calc.py`, `tests/unit/test_database.py`, `tests/http/test_holdings.py`.
 
 ## Calculations
@@ -27,7 +27,7 @@ Every calculated field is computed per request from stored inputs (quantity, cos
   - Money: 2 decimal places, rounded half-up.
   - Ratios (`weightPercent`, `dayChangePercent`): 6 decimal places.
   - Stored inputs (`quantity`, prices, cost basis) are returned as stored.
-  - The rounding helpers live in `app/domain/rounding.py` so Task 7's currency conversion can reuse them.
+  - The rounding helpers live in `app/domain/rounding.py` and are shared by every endpoint (history uses `round_money` too).
 - **Order:** by `marketValue`, largest first, then by ticker, so the dashboard table order is stable.
 - **404:** an unknown portfolio id is checked against our **database**, not the CRM, so holdings keep working while the CRM is down. A test covers this.
 - **Numbers in JSON** are floats (`120.0`), which is the same value as `120` to any JSON client.
@@ -47,7 +47,7 @@ Every calculated field is computed per request from stored inputs (quantity, cos
 
 - **Why a `securities` table:** prices belong to a security, not a holding. AAPL is held in P-9001 and P-SINGLE, so it's stored once.
   - If two seed holdings of the same ticker disagree on price, seeding fails loudly.
-- **Snapshot columns:** `holdings.quantity` and `holdings.cost_basis_per_share` come from the seed, as START-HERE allows for Tasks 2–9. Task 10 replaces them with values replayed from `transactions`.
+- **Snapshot columns:** `holdings.quantity` and `holdings.cost_basis_per_share` are stored from the seed (START-HERE allows this). The `transactions` table and `Holding.transactions` relationship are in place, so a future ledger-replay feature (REQUIREMENTS Task 10, out of scope) could derive them instead.
 - **Lifecycle:** `data/app.db` (gitignored) is a disposable copy of `backend/fixtures/seed.json`. It's **deleted and rebuilt on every startup**, so every run starts from the same known state. Tests use `:memory:`. Override with `DATABASE_PATH` and `SEED_PATH`.
 - **Sessions:** each service call opens its own short-lived SQLAlchemy session and closes it when done. Connections come from the engine's pool; an in-memory test database shares one connection so every session sees the same data.
 

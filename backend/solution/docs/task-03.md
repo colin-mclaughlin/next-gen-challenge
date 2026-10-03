@@ -1,6 +1,6 @@
 # Task 3: `GET /portfolios/{id}/performance-history?range=`
 
-Code: `app/domain/history.py` (pure range logic), `app/services/history.py`, `app/routers/history.py`, `app/db/history_fixture.py` (keeps the sample file current), `app/clock.py`.
+Code: `app/domain/history.py` (pure range logic), `app/services/history.py`, `app/routers/history.py`, `app/db/repositories.py` (`list_snapshots`), `app/models/performance.py`, `app/db/history_fixture.py` (keeps the sample file current), `app/clock.py`. See [architecture.md](architecture.md) for how the layers connect.
 Tests: `tests/unit/test_history_range.py`, `tests/unit/test_history_fixture.py`, `tests/http/test_performance_history.py`.
 
 ## Range rules
@@ -28,4 +28,4 @@ Each range returns daily snapshots with `start ≤ date ≤ today`, oldest first
   - The refresh only applies to the default path. A custom `HISTORY_PATH` is loaded as-is.
 - **Validation:** history for a portfolio id that isn't in the seed fails loudly at startup.
 - **Git:** the generated file is listed in the repo-root `.gitignore`. START-HERE says it's ignored, but this repo had no rule for it.
-- **Schema:** `performance_snapshots(portfolio_id FK, date, market_value CHECK ≥ 0, PK(portfolio_id, date))`.
+- **Schema:** model `PerformanceSnapshot` → table `performance_snapshots(portfolio_id FK, date, market_value CHECK ≥ 0, PK(portfolio_id, date))`.

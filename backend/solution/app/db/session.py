@@ -1,7 +1,7 @@
 """Sessions: a Session is one unit of work against the database (load objects, change them, commit).
 
-The app creates one session factory at startup; each piece of work (seeding now, each request
-from step 3 onward) opens its own short-lived session from it and closes it when finished.
+The app creates one session factory at startup; each piece of work (seeding, and each service
+call during a request) opens its own short-lived session from it and closes it when finished.
 """
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session, sessionmaker

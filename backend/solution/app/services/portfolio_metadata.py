@@ -1,6 +1,6 @@
 """Task 1: fetch portfolio metadata from the CRM, map it, and translate failures into API errors.
 
-Task 9 will add the cache / stale-fallback layer here.
+This is the extension point for a cache with stale fallback (see docs/task-01.md).
 """
 from app.errors import ApiError
 from app.schemas import PortfolioMetadata

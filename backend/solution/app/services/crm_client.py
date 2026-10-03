@@ -23,16 +23,29 @@ class CrmClient:
         self.base_url = base_url.rstrip("/")
         self.timeout_seconds = timeout_seconds
         self._transport = transport  # injectable for tests (httpx.MockTransport)
+        self._client: httpx.AsyncClient | None = None
+
+    def _http(self) -> httpx.AsyncClient:
+        # One shared client: reuses connections, and its (slow-to-build) SSL context is created
+        # once, outside the timed section, so it can't eat into the CRM time budget.
+        if self._client is None:
+            self._client = httpx.AsyncClient(timeout=self.timeout_seconds, transport=self._transport)
+        return self._client
+
+    async def aclose(self) -> None:
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
 
     async def get_portfolio(self, portfolio_id: str) -> Any:
         """Fetch the raw CRM record containing the given portfolio (account) id."""
         url = f"{self.base_url}/crm/portfolios/{quote(portfolio_id, safe='')}"
+        client = self._http()
         try:
             # httpx timeouts are per network operation; asyncio.timeout caps the whole call
             # (connect + headers + body) so a slow-dripping CRM can't hang the request either.
             async with asyncio.timeout(self.timeout_seconds):
-                async with httpx.AsyncClient(timeout=self.timeout_seconds, transport=self._transport) as client:
-                    response = await client.get(url, headers={"Accept": "application/json"})
+                response = await client.get(url, headers={"Accept": "application/json"})
         except (TimeoutError, httpx.TimeoutException):
             raise CrmError("timeout", f"CRM did not respond within {self.timeout_seconds}s.") from None
         except httpx.HTTPError as exc:

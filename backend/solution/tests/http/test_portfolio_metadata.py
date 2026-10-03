@@ -8,12 +8,12 @@ from fastapi.testclient import TestClient
 from app.config import Settings
 from app.main import create_app
 
-CRM_TIMEOUT_SECONDS = 0.3
+CRM_TIMEOUT_SECONDS = 0.5
 
 
 @pytest.fixture
-def client(mock_crm):
-    app = create_app(Settings(crm_base_url=mock_crm.base_url, crm_timeout_seconds=CRM_TIMEOUT_SECONDS))
+def client(mock_crm, db):
+    app = create_app(Settings(crm_base_url=mock_crm.base_url, crm_timeout_seconds=CRM_TIMEOUT_SECONDS), db=db)
     with TestClient(app) as test_client:
         yield test_client
 

@@ -8,7 +8,8 @@ router = APIRouter(prefix="/portfolios", tags=["portfolios"])
 
 
 def _metadata_service(request: Request) -> PortfolioMetadataService:
-    return request.app.state.portfolio_metadata
+    service: PortfolioMetadataService = request.app.state.portfolio_metadata
+    return service
 
 
 @router.get(

@@ -7,8 +7,29 @@ from pathlib import Path
 
 import httpx
 import pytest
+from fastapi.testclient import TestClient
+
+from app.config import DEFAULT_SEED_PATH, Settings
+from app.db.database import MEMORY, build_database
+from app.main import create_app
 
 MOCK_CRM = Path(__file__).resolve().parents[2] / "mock-crm.mjs"
+UNREACHABLE_CRM = "http://127.0.0.1:9"  # for apps whose tests never call the CRM
+
+
+@pytest.fixture
+def db():
+    """Fresh in-memory database with the schema and seed fixtures loaded."""
+    conn = build_database(MEMORY, str(DEFAULT_SEED_PATH))
+    yield conn
+    conn.close()
+
+
+@pytest.fixture
+def app_client(db):
+    """App backed by the seeded in-memory db; no mock CRM needed."""
+    with TestClient(create_app(Settings(crm_base_url=UNREACHABLE_CRM), db=db)) as client:
+        yield client
 
 
 def _free_port() -> int:

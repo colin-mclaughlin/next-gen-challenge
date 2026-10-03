@@ -54,11 +54,12 @@ def map_crm_portfolio(payload: Any, portfolio_id: str) -> PortfolioMetadata | No
 
 
 def _find_accounts(record: dict) -> list | None:
-    if isinstance(record.get("accounts"), list):
-        return record["accounts"]
-    relationships = _dict(record.get("relationships"))
-    if isinstance(relationships.get("accounts"), list):
-        return relationships["accounts"]
+    accounts = record.get("accounts")
+    if isinstance(accounts, list):
+        return accounts
+    nested = _dict(record.get("relationships")).get("accounts")
+    if isinstance(nested, list):
+        return nested
     return None
 
 

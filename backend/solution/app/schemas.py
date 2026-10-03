@@ -19,3 +19,20 @@ class PortfolioMetadata(ApiModel):
     day_change_percent: float | None
     total_return_since_inception: float | None
     as_of: str | None
+
+
+class Holding(ApiModel):
+    """Task 2 output item. Money rounded to 2 dp, ratios (decimals) to 6 dp."""
+
+    ticker: str
+    name: str
+    asset_class: str
+    quantity: float
+    cost_basis_per_share: float
+    price: float
+    previous_close_price: float
+    market_value: float
+    weight_percent: float
+    unrealized_gain_loss: float
+    day_change_amount: float
+    day_change_percent: float | None  # null when previous close is 0

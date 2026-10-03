@@ -44,6 +44,7 @@ cd backend/solution && python -m pytest && python -m mypy
   - CRM tests start the **real mock CRM** with `node` on a random port and switch its modes with `POST /__control`.
   - If `node` isn't on PATH, the CRM tests are skipped.
 - `mypy` checks the type hints in `app/`.
+- Run just the unit tests with `python -m pytest tests/unit -v`. [Task 1 test rationale](tests/TASK1_TESTS.md) explains each added case.
 
 ## Layout
 ```

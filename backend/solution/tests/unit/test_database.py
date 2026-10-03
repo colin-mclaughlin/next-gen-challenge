@@ -52,12 +52,13 @@ def test_conflicting_prices_for_one_ticker_fail_loudly(tmp_path):
 def test_file_database_is_rebuilt_from_scratch(tmp_path):
     path = str(tmp_path / "app.db")
     first = build_database(path, str(DEFAULT_SEED_PATH))
-    first.execute("DELETE FROM transactions")
-    first.commit()
-    first.close()
+    with first.begin() as conn:
+        conn.exec_driver_sql("DELETE FROM transactions")
+    first.dispose()
     second = build_database(path, str(DEFAULT_SEED_PATH))
-    assert count(second, "transactions") == 8
-    second.close()
+    with second.connect() as conn:
+        assert conn.exec_driver_sql("SELECT COUNT(*) FROM transactions").scalar() == 8
+    second.dispose()
 
 
 def test_repositories(db):

@@ -1,14 +1,14 @@
-"""Application factory. Dependencies are built here so tests can pass in their own settings/clients/db/clock."""
-import sqlite3
+"""Application factory. Dependencies are built here so tests can pass in their own settings/clients/engine/clock."""
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from sqlalchemy import Engine
 
 from app.clock import Clock, utc_today
 from app.config import DEFAULT_HISTORY_PATH, Settings, load_settings
-from app.db.database import build_database
+from app.db.database import build_database, legacy_connection
 from app.db.history_fixture import ensure_history_file
 from app.errors import register_error_handlers
 from app.routers import history, holdings, portfolios
@@ -21,22 +21,24 @@ from app.services.portfolio_metadata import PortfolioMetadataService
 def create_app(
     settings: Settings | None = None,
     crm: CrmClient | None = None,
-    db: sqlite3.Connection | None = None,
+    engine: Engine | None = None,
     clock: Clock = utc_today,
 ) -> FastAPI:
     settings = settings or load_settings()
-    owns_crm, owns_db = crm is None, db is None
+    owns_crm, owns_engine = crm is None, engine is None
     crm_client = crm or CrmClient(settings.crm_base_url, settings.crm_timeout_seconds)
-    conn = db or _build_default_database(settings, clock)
+    db_engine = engine or _build_default_database(settings, clock)
+    conn, conn_handle = legacy_connection(db_engine)  # TEMPORARY until refactor step 3
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         yield
+        conn_handle.close()
         # Only close what this factory created; injected dependencies belong to the caller.
         if owns_crm:
             await crm_client.aclose()
-        if owns_db:
-            conn.close()
+        if owns_engine:
+            db_engine.dispose()
 
     app = FastAPI(title="Portfolio Dashboard Backend", lifespan=lifespan)
     app.state.settings = settings
@@ -56,7 +58,7 @@ def create_app(
     return app
 
 
-def _build_default_database(settings: Settings, clock: Clock) -> sqlite3.Connection:
+def _build_default_database(settings: Settings, clock: Clock) -> Engine:
     history_path = Path(settings.history_path)
     # The supplied generator only writes to its default location, so only refresh that file.
     if history_path.resolve() == DEFAULT_HISTORY_PATH.resolve():

@@ -12,8 +12,8 @@ CRM_TIMEOUT_SECONDS = 0.5
 
 
 @pytest.fixture
-def client(mock_crm, db):
-    app = create_app(Settings(crm_base_url=mock_crm.base_url, crm_timeout_seconds=CRM_TIMEOUT_SECONDS), db=db)
+def client(mock_crm, engine):
+    app = create_app(Settings(crm_base_url=mock_crm.base_url, crm_timeout_seconds=CRM_TIMEOUT_SECONDS), engine=engine)
     with TestClient(app) as test_client:
         yield test_client
 

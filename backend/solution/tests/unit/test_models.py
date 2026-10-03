@@ -1,13 +1,13 @@
-"""The SQLAlchemy models describe exactly the schema in schema.sql, and their relationships navigate correctly."""
+"""The SQLAlchemy models define the schema (schema.sql is generated from them), and relationships navigate correctly."""
 import datetime
 import sqlite3
 
 import pytest
-from sqlalchemy import create_engine, event
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.db.database import SCHEMA_PATH
+from app.db.database import SCHEMA_PATH, render_schema_sql
+from app.db.engine import MEMORY, create_db_engine
 from app.models import Base, Client, Holding, Portfolio, PricePoint, Security, Transaction, TransactionType
 
 
@@ -24,15 +24,17 @@ def describe(conn: sqlite3.Connection) -> dict:
 
 @pytest.fixture
 def engine():
-    engine = create_engine("sqlite://")
-
-    @event.listens_for(engine, "connect")
-    def _enable_foreign_keys(dbapi_connection, _record):
-        dbapi_connection.execute("PRAGMA foreign_keys = ON")
-
+    """Empty tables (no seed data), using the app's engine factory so foreign keys are enforced."""
+    engine = create_db_engine(MEMORY)
     Base.metadata.create_all(engine)
     yield engine
     engine.dispose()
+
+
+def test_schema_sql_is_regenerated_from_the_models():
+    assert SCHEMA_PATH.read_text(encoding="utf-8") == render_schema_sql(), (
+        "app/db/schema.sql is out of date: run `python -m app.db.schema_dump`"
+    )
 
 
 def test_models_match_schema_sql_exactly(engine):

@@ -1,72 +1,92 @@
--- Normalized schema for the portfolio dashboard (all money in the portfolio's currency; seed data is CAD).
--- Foreign keys are enabled per connection in database.py (PRAGMA foreign_keys = ON).
+-- GENERATED from app/models by `python -m app.db.schema_dump`. Do not edit by hand:
+-- change the models, then regenerate. tests/unit/test_models.py fails if this file is stale.
 
 CREATE TABLE clients (
-    client_id TEXT NOT NULL PRIMARY KEY,
-    name      TEXT NOT NULL
-);
-
-CREATE TABLE portfolios (
-    portfolio_id TEXT NOT NULL PRIMARY KEY,
-    client_id    TEXT NOT NULL REFERENCES clients (client_id),
-    label        TEXT NOT NULL,
-    currency     TEXT NOT NULL CHECK (length(currency) = 3)
-);
-CREATE INDEX idx_portfolios_client ON portfolios (client_id);
-
--- Security master: one row per ticker, shared by every portfolio that holds it (e.g. AAPL).
-CREATE TABLE securities (
-    ticker               TEXT NOT NULL PRIMARY KEY,
-    name                 TEXT NOT NULL,
-    asset_class          TEXT NOT NULL,
-    sector               TEXT,
-    dividend_yield       REAL CHECK (dividend_yield IS NULL OR dividend_yield >= 0),  -- NULL = pays no dividend
-    fifty_two_week_low   REAL,
-    fifty_two_week_high  REAL,
-    price                REAL NOT NULL CHECK (price >= 0),
-    previous_close_price REAL NOT NULL CHECK (previous_close_price >= 0)
-);
-
-CREATE TABLE security_price_history (
-    ticker TEXT NOT NULL REFERENCES securities (ticker),
-    date   TEXT NOT NULL,  -- ISO 8601 YYYY-MM-DD
-    price  REAL NOT NULL CHECK (price >= 0),
-    PRIMARY KEY (ticker, date)
-);
-
--- A portfolio's position in one security.
--- quantity / cost_basis_per_share are seed snapshots used by Tasks 2-9 (allowed by START-HERE.md);
--- Task 10 derives them from `transactions` via ledger replay instead.
-CREATE TABLE holdings (
-    holding_id           TEXT NOT NULL PRIMARY KEY,
-    portfolio_id         TEXT NOT NULL REFERENCES portfolios (portfolio_id),
-    ticker               TEXT NOT NULL REFERENCES securities (ticker),
-    quantity             REAL NOT NULL CHECK (quantity >= 0),
-    cost_basis_per_share REAL NOT NULL CHECK (cost_basis_per_share >= 0),
-    UNIQUE (portfolio_id, ticker)
-);
-
-CREATE TABLE transactions (
-    transaction_id TEXT NOT NULL PRIMARY KEY,
-    holding_id     TEXT NOT NULL REFERENCES holdings (holding_id),
-    type           TEXT NOT NULL CHECK (type IN ('BUY', 'SELL')),
-    quantity       REAL NOT NULL CHECK (quantity > 0),
-    price          REAL NOT NULL CHECK (price >= 0),
-    date           TEXT NOT NULL  -- ISO 8601 YYYY-MM-DD
-);
-CREATE INDEX idx_transactions_holding ON transactions (holding_id, date);
-
--- Daily total market value per portfolio (Task 3), loaded from backend/fixtures/performance-history.json.
-CREATE TABLE performance_snapshots (
-    portfolio_id TEXT NOT NULL REFERENCES portfolios (portfolio_id),
-    date         TEXT NOT NULL,  -- ISO 8601 YYYY-MM-DD
-    market_value REAL NOT NULL CHECK (market_value >= 0),
-    PRIMARY KEY (portfolio_id, date)
+	client_id VARCHAR(64) NOT NULL, 
+	name VARCHAR NOT NULL, 
+	CONSTRAINT pk_clients PRIMARY KEY (client_id)
 );
 
 CREATE TABLE exchange_rates (
-    base_currency  TEXT NOT NULL,
-    quote_currency TEXT NOT NULL,
-    rate           REAL NOT NULL CHECK (rate > 0),
-    PRIMARY KEY (base_currency, quote_currency)
+	base_currency VARCHAR(3) NOT NULL, 
+	quote_currency VARCHAR(3) NOT NULL, 
+	rate DOUBLE NOT NULL, 
+	CONSTRAINT pk_exchange_rates PRIMARY KEY (base_currency, quote_currency), 
+	CONSTRAINT ck_exchange_rates_rate_positive CHECK (rate > 0)
 );
+
+CREATE TABLE securities (
+	ticker VARCHAR(16) NOT NULL, 
+	name VARCHAR NOT NULL, 
+	asset_class VARCHAR NOT NULL, 
+	sector VARCHAR, 
+	dividend_yield DOUBLE, 
+	fifty_two_week_low DOUBLE, 
+	fifty_two_week_high DOUBLE, 
+	price DOUBLE NOT NULL, 
+	previous_close_price DOUBLE NOT NULL, 
+	CONSTRAINT pk_securities PRIMARY KEY (ticker), 
+	CONSTRAINT ck_securities_dividend_yield_non_negative CHECK (dividend_yield IS NULL OR dividend_yield >= 0), 
+	CONSTRAINT ck_securities_price_non_negative CHECK (price >= 0), 
+	CONSTRAINT ck_securities_previous_close_non_negative CHECK (previous_close_price >= 0)
+);
+
+CREATE TABLE portfolios (
+	portfolio_id VARCHAR(64) NOT NULL, 
+	client_id VARCHAR(64) NOT NULL, 
+	label VARCHAR NOT NULL, 
+	currency VARCHAR(3) NOT NULL, 
+	CONSTRAINT pk_portfolios PRIMARY KEY (portfolio_id), 
+	CONSTRAINT ck_portfolios_currency_iso_code CHECK (length(currency) = 3), 
+	CONSTRAINT fk_portfolios_client_id_clients FOREIGN KEY(client_id) REFERENCES clients (client_id)
+);
+
+CREATE INDEX ix_portfolios_client_id ON portfolios (client_id);
+
+CREATE TABLE security_price_history (
+	ticker VARCHAR(16) NOT NULL, 
+	date DATE NOT NULL, 
+	price DOUBLE NOT NULL, 
+	CONSTRAINT pk_security_price_history PRIMARY KEY (ticker, date), 
+	CONSTRAINT ck_security_price_history_price_non_negative CHECK (price >= 0), 
+	CONSTRAINT fk_security_price_history_ticker_securities FOREIGN KEY(ticker) REFERENCES securities (ticker)
+);
+
+CREATE TABLE holdings (
+	holding_id VARCHAR(64) NOT NULL, 
+	portfolio_id VARCHAR(64) NOT NULL, 
+	ticker VARCHAR(16) NOT NULL, 
+	quantity DOUBLE NOT NULL, 
+	cost_basis_per_share DOUBLE NOT NULL, 
+	CONSTRAINT pk_holdings PRIMARY KEY (holding_id), 
+	CONSTRAINT uq_holdings_portfolio_id_ticker UNIQUE (portfolio_id, ticker), 
+	CONSTRAINT ck_holdings_quantity_non_negative CHECK (quantity >= 0), 
+	CONSTRAINT ck_holdings_cost_basis_non_negative CHECK (cost_basis_per_share >= 0), 
+	CONSTRAINT fk_holdings_portfolio_id_portfolios FOREIGN KEY(portfolio_id) REFERENCES portfolios (portfolio_id), 
+	CONSTRAINT fk_holdings_ticker_securities FOREIGN KEY(ticker) REFERENCES securities (ticker)
+);
+
+CREATE TABLE performance_snapshots (
+	portfolio_id VARCHAR(64) NOT NULL, 
+	date DATE NOT NULL, 
+	market_value DOUBLE NOT NULL, 
+	CONSTRAINT pk_performance_snapshots PRIMARY KEY (portfolio_id, date), 
+	CONSTRAINT ck_performance_snapshots_market_value_non_negative CHECK (market_value >= 0), 
+	CONSTRAINT fk_performance_snapshots_portfolio_id_portfolios FOREIGN KEY(portfolio_id) REFERENCES portfolios (portfolio_id)
+);
+
+CREATE TABLE transactions (
+	transaction_id VARCHAR(64) NOT NULL, 
+	holding_id VARCHAR(64) NOT NULL, 
+	type VARCHAR(4) NOT NULL, 
+	quantity DOUBLE NOT NULL, 
+	price DOUBLE NOT NULL, 
+	date DATE NOT NULL, 
+	CONSTRAINT pk_transactions PRIMARY KEY (transaction_id), 
+	CONSTRAINT ck_transactions_quantity_positive CHECK (quantity > 0), 
+	CONSTRAINT ck_transactions_price_non_negative CHECK (price >= 0), 
+	CONSTRAINT fk_transactions_holding_id_holdings FOREIGN KEY(holding_id) REFERENCES holdings (holding_id), 
+	CONSTRAINT ck_transactions_transaction_type CHECK (type IN ('BUY', 'SELL'))
+);
+
+CREATE INDEX ix_transactions_holding_id_date ON transactions (holding_id, date);

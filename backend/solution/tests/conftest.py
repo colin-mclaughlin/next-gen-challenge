@@ -12,7 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import DEFAULT_SEED_PATH, Settings
-from app.db.database import MEMORY, build_database
+from app.db.database import MEMORY, build_database, legacy_connection
 from app.main import create_app
 
 MOCK_CRM = Path(__file__).resolve().parents[2] / "mock-crm.mjs"
@@ -38,25 +38,33 @@ def write_history(path: Path, today: date = FIXED_TODAY) -> Path:
 @pytest.fixture
 def history_client(tmp_path):
     """App with seeded db + generated history ending FIXED_TODAY, and a clock pinned to that day."""
-    conn = build_database(MEMORY, str(DEFAULT_SEED_PATH), str(write_history(tmp_path / "history.json")))
-    app = create_app(Settings(crm_base_url=UNREACHABLE_CRM), db=conn, clock=lambda: FIXED_TODAY)
+    engine = build_database(MEMORY, str(DEFAULT_SEED_PATH), str(write_history(tmp_path / "history.json")))
+    app = create_app(Settings(crm_base_url=UNREACHABLE_CRM), engine=engine, clock=lambda: FIXED_TODAY)
     with TestClient(app) as client:
         yield client
-    conn.close()
+    engine.dispose()
 
 
 @pytest.fixture
-def db():
-    """Fresh in-memory database with the schema and seed fixtures loaded."""
-    conn = build_database(MEMORY, str(DEFAULT_SEED_PATH))
+def engine():
+    """Fresh in-memory database (all tables + seed fixtures), shared by `db` and `app_client`."""
+    engine = build_database(MEMORY, str(DEFAULT_SEED_PATH))
+    yield engine
+    engine.dispose()
+
+
+@pytest.fixture
+def db(engine):
+    """Raw sqlite3 connection to the same in-memory database, for tests that set up data with SQL."""
+    conn, handle = legacy_connection(engine)
     yield conn
-    conn.close()
+    handle.close()
 
 
 @pytest.fixture
-def app_client(db):
+def app_client(engine):
     """App backed by the seeded in-memory db; no mock CRM needed."""
-    with TestClient(create_app(Settings(crm_base_url=UNREACHABLE_CRM), db=db)) as client:
+    with TestClient(create_app(Settings(crm_base_url=UNREACHABLE_CRM), engine=engine)) as client:
         yield client
 
 

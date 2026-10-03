@@ -49,16 +49,18 @@ def test_generator_failure_warns_instead_of_crashing(tmp_path, caplog):
 
 
 def test_history_is_loaded_into_the_database(tmp_path):
-    conn = build_database(MEMORY, str(DEFAULT_SEED_PATH), str(write_history(tmp_path / "h.json")))
-    counts = dict(conn.execute("SELECT portfolio_id, COUNT(*) FROM performance_snapshots GROUP BY portfolio_id"))
-    assert counts == {"P-9001": 401, "P-9002": 60, "P-SINGLE": 60}
-    conn.close()
+    engine = build_database(MEMORY, str(DEFAULT_SEED_PATH), str(write_history(tmp_path / "h.json")))
+    with engine.connect() as conn:
+        rows = conn.exec_driver_sql("SELECT portfolio_id, COUNT(*) FROM performance_snapshots GROUP BY portfolio_id")
+        assert {portfolio_id: count for portfolio_id, count in rows} == {"P-9001": 401, "P-9002": 60, "P-SINGLE": 60}
+    engine.dispose()
 
 
 def test_missing_history_file_loads_no_history(tmp_path):
-    conn = build_database(MEMORY, str(DEFAULT_SEED_PATH), str(tmp_path / "missing.json"))
-    assert conn.execute("SELECT COUNT(*) FROM performance_snapshots").fetchone()[0] == 0
-    conn.close()
+    engine = build_database(MEMORY, str(DEFAULT_SEED_PATH), str(tmp_path / "missing.json"))
+    with engine.connect() as conn:
+        assert conn.exec_driver_sql("SELECT COUNT(*) FROM performance_snapshots").scalar() == 0
+    engine.dispose()
 
 
 def test_history_for_unknown_portfolio_fails_loudly(tmp_path):

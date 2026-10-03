@@ -80,9 +80,9 @@ def test_misspelled_sub_route_is_structured_404(app_client):
     assert res.json()["error"] == "not_found"
 
 
-def test_holdings_do_not_depend_on_the_crm(mock_crm, db):
+def test_holdings_do_not_depend_on_the_crm(mock_crm, engine):
     mock_crm.set_mode("error")
-    app = create_app(Settings(crm_base_url=mock_crm.base_url, crm_timeout_seconds=0.5), db=db)
+    app = create_app(Settings(crm_base_url=mock_crm.base_url, crm_timeout_seconds=0.5), engine=engine)
     with TestClient(app) as client:
         assert client.get("/portfolios/P-9001").status_code == 502  # CRM-backed metadata is down...
         assert client.get("/portfolios/P-9001/holdings").status_code == 200  # ...holdings still work
